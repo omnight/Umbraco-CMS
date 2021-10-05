@@ -880,7 +880,7 @@ namespace Umbraco.Cms.Core.Services.Implement
         }
 
         /// <inheritdoc />
-        public PublishResult SaveAndPublish(IContent content, string culture = "*", int userId = Cms.Core.Constants.Security.SuperUserId)
+        public PublishResult SaveAndPublish(IContent content, string culture = "*", int userId = Cms.Core.Constants.Security.SuperUserId, ContentScheduleCollection contentSchedule = null)
         {
             var evtMsgs = EventMessagesFactory.Get();
 
@@ -928,14 +928,18 @@ namespace Umbraco.Cms.Core.Services.Implement
                 // we don't care about the response here, this response will be rechecked below but we need to set the culture info values now.
                 content.PublishCulture(impact);
 
-                var result = CommitDocumentChangesInternal(scope, content, evtMsgs, allLangs, savingNotification.State, userId);
+                var result = CommitDocumentChangesInternal(scope, content, contentSchedule, evtMsgs, allLangs, savingNotification.State, userId);
+                if (contentSchedule != null)
+                {
+                    _documentRepository.PersistContentSchedule(content, contentSchedule);
+                }
                 scope.Complete();
                 return result;
             }
         }
 
         /// <inheritdoc />
-        public PublishResult SaveAndPublish(IContent content, string[] cultures, int userId = Cms.Core.Constants.Security.SuperUserId)
+        public PublishResult SaveAndPublish(IContent content, string[] cultures, int userId = Cms.Core.Constants.Security.SuperUserId, ContentScheduleCollection contentSchedule = null)
         {
             if (content == null) throw new ArgumentNullException(nameof(content));
             if (cultures == null) throw new ArgumentNullException(nameof(cultures));
@@ -964,7 +968,7 @@ namespace Umbraco.Cms.Core.Services.Implement
                 if (cultures.Length == 0 && !varies)
                 {
                     //no cultures specified and doesn't vary, so publish it, else nothing to publish
-                    return SaveAndPublish(content, userId: userId);
+                    return SaveAndPublish(content, userId: userId, contentSchedule: contentSchedule);
                 }
 
                 if (cultures.Any(x => x == null || x == "*"))
@@ -979,7 +983,11 @@ namespace Umbraco.Cms.Core.Services.Implement
                     content.PublishCulture(impact);
                 }
 
-                var result = CommitDocumentChangesInternal(scope, content, evtMsgs, allLangs, savingNotification.State, userId);
+                var result = CommitDocumentChangesInternal(scope, content, contentSchedule, evtMsgs, allLangs, savingNotification.State, userId);
+                if (contentSchedule != null)
+                {
+                    _documentRepository.PersistContentSchedule(content, contentSchedule);
+                }
                 scope.Complete();
                 return result;
             }
@@ -1018,6 +1026,7 @@ namespace Umbraco.Cms.Core.Services.Implement
             using (var scope = ScopeProvider.CreateScope())
             {
                 scope.WriteLock(Cms.Core.Constants.Locks.ContentTree);
+                var contentSchedule = _documentRepository.GetContentSchedule(content.Id);
 
                 var allLangs = _languageRepository.GetMany().ToList();
 
@@ -1036,7 +1045,7 @@ namespace Umbraco.Cms.Core.Services.Implement
                     // to be non-routable so that when it's re-published all variants were as they were.
 
                     content.PublishedState = PublishedState.Unpublishing;
-                    var result = CommitDocumentChangesInternal(scope, content, evtMsgs, allLangs, savingNotification.State, userId);
+                    var result = CommitDocumentChangesInternal(scope, content, contentSchedule, evtMsgs, allLangs, savingNotification.State, userId);
                     scope.Complete();
                     return result;
                 }
@@ -1050,7 +1059,7 @@ namespace Umbraco.Cms.Core.Services.Implement
                     var removed = content.UnpublishCulture(culture);
 
                     //save and publish any changes
-                    var result = CommitDocumentChangesInternal(scope, content, evtMsgs, allLangs, savingNotification.State, userId);
+                    var result = CommitDocumentChangesInternal(scope, content, contentSchedule, evtMsgs, allLangs, savingNotification.State, userId);
 
                     scope.Complete();
 
@@ -1101,7 +1110,8 @@ namespace Umbraco.Cms.Core.Services.Implement
 
                 var allLangs = _languageRepository.GetMany().ToList();
 
-                var result = CommitDocumentChangesInternal(scope, content, evtMsgs, allLangs, savingNotification.State, userId);
+                var contentSchedule = _documentRepository.GetContentSchedule(content.Id);
+                var result = CommitDocumentChangesInternal(scope, content, contentSchedule, evtMsgs, allLangs, savingNotification.State, userId);
                 scope.Complete();
                 return result;
             }
@@ -1112,6 +1122,7 @@ namespace Umbraco.Cms.Core.Services.Implement
         /// </summary>
         /// <param name="scope"></param>
         /// <param name="content"></param>
+        /// <param name="contentSchedule"></param>
         /// <param name="allLangs"></param>
         /// <param name="notificationState"></param>
         /// <param name="userId"></param>
@@ -1125,7 +1136,7 @@ namespace Umbraco.Cms.Core.Services.Implement
         /// There is quite a lot of cases to take into account along with logic that needs to deal with scheduled saving/publishing, branch saving/publishing, etc...
         /// </para>
         /// </remarks>
-        private PublishResult CommitDocumentChangesInternal(IScope scope, IContent content,
+        private PublishResult CommitDocumentChangesInternal(IScope scope, IContent content, ContentScheduleCollection contentSchedule,
             EventMessages eventMessages, IReadOnlyCollection<ILanguage> allLangs,
             IDictionary<string, object> notificationState,
             int userId = Constants.Security.SuperUserId,
@@ -1145,6 +1156,8 @@ namespace Umbraco.Cms.Core.Services.Implement
             {
                 throw new ArgumentNullException(nameof(eventMessages));
             }
+
+            contentSchedule ??= _documentRepository.GetContentSchedule(content.Id);
 
             PublishResult publishResult = null;
             PublishResult unpublishResult = null;
@@ -1197,7 +1210,7 @@ namespace Umbraco.Cms.Core.Services.Implement
                         : null;
 
                 // ensure that the document can be published, and publish handling events, business rules, etc
-                publishResult = StrategyCanPublish(scope, content, /*checkPath:*/ (!branchOne || branchRoot), culturesPublishing, culturesUnpublishing, eventMessages, allLangs, notificationState);
+                publishResult = StrategyCanPublish(scope, content, contentSchedule, /*checkPath:*/ (!branchOne || branchRoot), culturesPublishing, culturesUnpublishing, eventMessages, allLangs, notificationState);
                 if (publishResult.Success)
                 {
                     // note: StrategyPublish flips the PublishedState to Publishing!
@@ -1466,11 +1479,13 @@ namespace Umbraco.Cms.Core.Services.Implement
 
                         foreach (var c in pendingCultures)
                         {
+                            //Clear this schedule for this culture
+                            contentSchedule.Clear(c, ContentScheduleAction.Expire, date);
                             //set the culture to be published
                             d.UnpublishCulture(c);
                         }
 
-                        var result = CommitDocumentChangesInternal(scope, d, evtMsgs, allLangs.Value, savingNotification.State, d.WriterId);
+                        var result = CommitDocumentChangesInternal(scope, d, contentSchedule, evtMsgs, allLangs.Value, savingNotification.State, d.WriterId);
                         if (result.Success == false)
                             _logger.LogError(null, "Failed to publish document id={DocumentId}, reason={Reason}.", d.Id, result.Result);
                         results.Add(result);
@@ -1478,6 +1493,8 @@ namespace Umbraco.Cms.Core.Services.Implement
                     }
                     else
                     {
+                        //Clear this schedule for this culture
+                        contentSchedule.Clear(ContentScheduleAction.Expire, date);
                         var result = Unpublish(d, userId: d.WriterId);
                         if (result.Success == false)
                             _logger.LogError(null, "Failed to unpublish document id={DocumentId}, reason={Reason}.", d.Id, result.Result);
@@ -1525,6 +1542,9 @@ namespace Umbraco.Cms.Core.Services.Implement
                         var publishing = true;
                         foreach (var culture in pendingCultures)
                         {
+                            //Clear this schedule for this culture
+                            contentSchedule.Clear(culture, ContentScheduleAction.Release, date);
+
                             if (d.Trashed)
                                 continue; // won't publish
 
@@ -1548,7 +1568,7 @@ namespace Umbraco.Cms.Core.Services.Implement
                         else if (!publishing)
                             result = new PublishResult(PublishResultType.FailedPublishContentInvalid, evtMsgs, d);
                         else
-                            result = CommitDocumentChangesInternal(scope, d, evtMsgs, allLangs.Value, savingNotification.State, d.WriterId);
+                            result = CommitDocumentChangesInternal(scope, d, contentSchedule, evtMsgs, allLangs.Value, savingNotification.State, d.WriterId);
 
                         if (result.Success == false)
                             _logger.LogError(null, "Failed to publish document id={DocumentId}, reason={Reason}.", d.Id, result.Result);
@@ -1557,9 +1577,12 @@ namespace Umbraco.Cms.Core.Services.Implement
                     }
                     else
                     {
+                        //Clear this schedule for this culture
+                        contentSchedule.Clear(ContentScheduleAction.Release, date);
+
                         var result = d.Trashed
                             ? new PublishResult(PublishResultType.FailedPublishIsTrashed, evtMsgs, d)
-                            : SaveAndPublish(d, userId: d.WriterId);
+                            : SaveAndPublish(d, userId: d.WriterId, contentSchedule: contentSchedule);
 
                         if (result.Success == false)
                             _logger.LogError(null, "Failed to publish document id={DocumentId}, reason={Reason}.", d.Id, result.Result);
@@ -1823,7 +1846,8 @@ namespace Umbraco.Cms.Core.Services.Implement
                 return new PublishResult(PublishResultType.FailedPublishContentInvalid, evtMsgs, document);
             }
 
-            var result = CommitDocumentChangesInternal(scope, document, evtMsgs, allLangs, savingNotification.State, userId, branchOne: true, branchRoot: isRoot);
+            var contentSchedule = _documentRepository.GetContentSchedule(document.Id);
+            var result = CommitDocumentChangesInternal(scope, document, contentSchedule, evtMsgs, allLangs, savingNotification.State, userId, branchOne: true, branchRoot: isRoot);
             if (result.Success)
                 publishedDocuments.Add(document);
             return result;
@@ -2577,6 +2601,7 @@ namespace Umbraco.Cms.Core.Services.Implement
         /// </summary>
         /// <param name="scope"></param>
         /// <param name="content"></param>
+        /// <param name="contentSchedule"></param>
         /// <param name="checkPath"></param>
         /// <param name="culturesUnpublishing"></param>
         /// <param name="evtMsgs"></param>
@@ -2584,7 +2609,7 @@ namespace Umbraco.Cms.Core.Services.Implement
         /// <param name="allLangs"></param>
         /// <param name="notificationState"></param>
         /// <returns></returns>
-        private PublishResult StrategyCanPublish(IScope scope, IContent content, bool checkPath, IReadOnlyList<string> culturesPublishing,
+        private PublishResult StrategyCanPublish(IScope scope, IContent content, ContentScheduleCollection contentSchedule, bool checkPath, IReadOnlyList<string> culturesPublishing,
             IReadOnlyCollection<string> culturesUnpublishing, EventMessages evtMsgs, IReadOnlyCollection<ILanguage> allLangs, IDictionary<string, object> notificationState)
         {
             // raise Publishing notification
@@ -2646,7 +2671,6 @@ namespace Umbraco.Cms.Core.Services.Implement
                 return new PublishResult(PublishResultType.FailedPublishNothingToPublish, evtMsgs, content);
             }
 
-            ContentScheduleCollection contentSchedule = _documentRepository.GetContentSchedule(content.Id);
             //loop over each culture publishing - or string.Empty for invariant
             foreach (var culture in culturesPublishing ?? (new[] { string.Empty }))
             {

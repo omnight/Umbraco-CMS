@@ -356,7 +356,8 @@ namespace Umbraco.Cms.Core.Services
         /// <param name="content">The document to publish.</param>
         /// <param name="culture">The culture to publish.</param>
         /// <param name="userId">The identifier of the user performing the action.</param>
-        PublishResult SaveAndPublish(IContent content, string culture = "*", int userId = Constants.Security.SuperUserId);
+        /// <param name="contentSchedule">Optional content publish/unpublish schedule</param>
+        PublishResult SaveAndPublish(IContent content, string culture = "*", int userId = Constants.Security.SuperUserId, ContentScheduleCollection contentSchedule = null);
 
         /// <summary>
         /// Saves and publishes a document.
@@ -369,7 +370,8 @@ namespace Umbraco.Cms.Core.Services
         /// <param name="content">The document to publish.</param>
         /// <param name="cultures">The cultures to publish.</param>
         /// <param name="userId">The identifier of the user performing the action.</param>
-        PublishResult SaveAndPublish(IContent content, string[] cultures, int userId = Constants.Security.SuperUserId);
+        /// <param name="contentSchedule">Optional content publish/unpublish schedule</param>
+        PublishResult SaveAndPublish(IContent content, string[] cultures, int userId = Constants.Security.SuperUserId, ContentScheduleCollection contentSchedule = null);
 
         /// <summary>
         /// Saves and publishes a document branch.

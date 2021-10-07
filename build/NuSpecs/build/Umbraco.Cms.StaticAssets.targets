@@ -18,10 +18,10 @@
 
     <!-- 
         The set of files to publish is generated really early and doesn't currently account for files added by targets e.g. BeforeBuild.
-        A fix was put in place in websdk to update for wwwwroot incase someone does npm build etc in a target we're borrowing their trick.
+        A fix was put in place in Web SDK to update for wwwwroot in case someone does npm build etc in a target we're borrowing their trick.
         https://github.com/dotnet/sdk/blob/e2b2b1a4ac56c955b84d62fe71cda3b6f258b42b/src/WebSdk/Publish/Targets/ComputeTargets/Microsoft.NET.Sdk.Publish.ComputeFiles.targets
 
-        TODO: wwwroot\umbraco\ can become a razor class library Works great if we add <StaticWebAssetBasePath>/</StaticWebAssetBasePath>
+        TODO: wwwroot\umbraco\ can become a razor class library (Works great if we add <StaticWebAssetBasePath>/</StaticWebAssetBasePath>)
         TODO: razor views can be embedded in appropriate class libraries (e.g. BackOffice and Web.Website)
      -->
     <Target Name="_EnsureUmbracoAssetsIncluded" BeforeTargets="GetCopyToPublishDirectoryItems">

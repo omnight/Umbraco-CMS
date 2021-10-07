@@ -1,8 +1,8 @@
-﻿// Copyright (c) Umbraco.
+// Copyright (c) Umbraco.
 // See LICENSE for more details.
 
 using System;
-using HeyRed.MarkdownSharp;
+using Markdig;
 using Umbraco.Cms.Core.Models.PublishedContent;
 using Umbraco.Cms.Core.Strings;
 using Umbraco.Cms.Core.Templates;
@@ -47,8 +47,8 @@ namespace Umbraco.Cms.Core.PropertyEditors.ValueConverters
         {
             // convert markup to HTML for frontend rendering.
             // source should come from ConvertSource and be a string (or null) already
-            var mark = new Markdown();
-            return new HtmlEncodedString(inter == null ? string.Empty : mark.Transform((string)inter));
+            var pipeline = new MarkdownPipelineBuilder().UseAdvancedExtensions().UseSoftlineBreakAsHardlineBreak().Build();
+            return new HtmlEncodedString(inter == null ? string.Empty : Markdown.ToHtml((string)inter, pipeline));
         }
 
         public override object ConvertIntermediateToXPath(IPublishedElement owner, IPublishedPropertyType propertyType, PropertyCacheLevel referenceCacheLevel, object inter, bool preview)

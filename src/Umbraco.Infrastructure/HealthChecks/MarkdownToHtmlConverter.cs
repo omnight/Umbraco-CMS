@@ -1,4 +1,4 @@
-﻿using HeyRed.MarkdownSharp;
+using Markdig;
 using Umbraco.Cms.Core.HealthChecks;
 using Umbraco.Cms.Core.HealthChecks.NotificationMethods;
 
@@ -8,8 +8,7 @@ namespace Umbraco.Cms.Infrastructure.HealthChecks
     {
         public string ToHtml(HealthCheckResults results, HealthCheckNotificationVerbosity verbosity)
         {
-            var mark = new Markdown();
-            var html = mark.Transform(results.ResultsAsMarkDown(verbosity));
+            var html = Markdown.ToHtml(results.ResultsAsMarkDown(verbosity));
             html = ApplyHtmlHighlighting(html);
             return html;
         }

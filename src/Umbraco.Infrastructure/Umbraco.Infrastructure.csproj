@@ -21,7 +21,7 @@
       <PackageReference Include="HtmlAgilityPack" Version="1.11.36" />
       <PackageReference Include="MailKit" Version="2.15.0" />
       <PackageReference Include="IPNetwork2" Version="2.5.353" />
-      <PackageReference Include="Markdown" Version="2.2.1" />
+      <PackageReference Include="Markdig" Version="0.26.0" />
       <PackageReference Include="Microsoft.CodeAnalysis.CSharp" Version="3.11.0" />
       <PackageReference Include="Microsoft.CSharp" Version="4.7.0" />
       <PackageReference Include="Microsoft.Extensions.Configuration.Abstractions" Version="5.0.0" />
